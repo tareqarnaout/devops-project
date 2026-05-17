@@ -52,18 +52,29 @@ jobs:
         uses: appleboy/ssh-action@master
         env:
           IMAGE_URI: ${{ needs.build-and-push.outputs.image_uri }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-north-1
         with:
           host: ${{ vars.EC2_HOST }}
           username: ubuntu 
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: IMAGE_URI
+          # We pass the AWS credentials into the server script securely
+          envs: IMAGE_URI,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_DEFAULT_REGION
           script: |
-            # 1. Create our isolated test folder on the server
+            # 1. Ensure the AWS CLI tool is installed on the server so it can authenticate
+            if ! command -v aws &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y awscli
+            fi
+
+            # 2. Log the EC2 server into your private Stockholm AWS ECR Registry
+            aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 245987718601.dkr.ecr.eu-north-1.amazonaws.com
+
+            # 3. Create our isolated test folder on the server
             mkdir -p /home/ubuntu/test_env
             cd /home/ubuntu/test_env
 
-            # 2. Generate a fresh, pure-production docker-compose.yml directly on the server
-            # This uses the specific Phase 1 architectures required[cite: 14]: db, backend, nginx.
+            # 4. Generate the clean docker-compose.yml file
             cat << EOF > docker-compose.yml
             version: '3.8'
 
@@ -101,7 +112,6 @@ jobs:
               test_static_volume:
             EOF
 
-            # 3. Safely launch the isolated test containers
-            # We fulfill the Group of 3 requirement using automated variables.
+            # 5. Launch the containers with authorization completely cleared!
             docker compose -p test down
             docker compose -p test up -d
