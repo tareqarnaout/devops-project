@@ -15,10 +15,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Fresh Artifact
-        # ADDED: move into the book-shop folder before zipping
+        # ADDED: Save the specific artifact name as an environment variable in GitHub
         run: |
           cd book-shop
-          tar -czf app-artifact.tar.gz ./*
+          export ARTIFACT_FILE="app-artifact.tar.gz"
+          tar -czf artifacts/$ARTIFACT_FILE ./*
+          echo "ARTIFACT_NAME=$ARTIFACT_FILE" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -37,10 +39,10 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: book_shop
           IMAGE_TAG: test-${{ github.sha }} 
-        # ADDED: move into the book-shop folder before building
+        # ADDED: Pass the ARTIFACT_NAME into Docker using --build-arg
         run: |
           cd book-shop
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build --build-arg ARTIFACT_NAME=${{ env.ARTIFACT_NAME }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
