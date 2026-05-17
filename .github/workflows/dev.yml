@@ -56,11 +56,25 @@ jobs:
           branch: dev
 
       - name: Build Docker image from artifact
+        working-directory: book-shop
         run: |
           docker build \
             --build-arg ARTIFACT_NAME=app-${{ github.sha }}.tar.gz \
             -t book_shop:${{ github.sha }} \
             .
+
+      - name: Save Docker image to file
+        run: |
+          docker save book_shop:${{ github.sha }} -o /tmp/book_shop.tar
+
+      - name: Copy image to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: /tmp/book_shop.tar
+          target: /home/ubuntu/
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
@@ -70,9 +84,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: DJANGO_SECRET_KEY,POSTGRES_PASSWORD
           script: |
-            cd /home/ubuntu/devops-project
+            # Load the transferred image
+            docker load -i /home/ubuntu/tmp/book_shop.tar
 
-            # Pull latest code
+            cd /home/ubuntu/devops-project
             git pull origin dev
 
             # Create .env file
@@ -82,10 +97,11 @@ jobs:
             POSTGRES_PASSWORD=$POSTGRES_PASSWORD
             DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY
             DJANGO_DEBUG=False
-            DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,$(curl -s ifconfig.me)
+            DJANGO_ALLOWED_HOSTS=*
+            IMAGE_TAG=${{ github.sha }}
             EOF
 
-            # Deploy
             cd book-shop
+            export IMAGE_TAG=${{ github.sha }}
             docker compose -p dev down
             docker compose -p dev up -d

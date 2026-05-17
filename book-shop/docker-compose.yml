@@ -1,16 +1,15 @@
 services:
   backend:
-    build: .
+    image: book_shop:${IMAGE_TAG}
     ports:
       - "8000:8000"
     env_file:
       - .env
-
     networks:
       - project-network
     depends_on:
       - db
-   
+
   db:
     image: postgres:15
     ports:
@@ -33,9 +32,10 @@ services:
       - backend
     networks:
       - project-network
+
 volumes:
   postgres_data:
   static_volume:
+
 networks:
   project-network:
-  
