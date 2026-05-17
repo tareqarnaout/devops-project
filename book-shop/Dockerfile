@@ -4,9 +4,9 @@ WORKDIR /app
 
 ARG ARTIFACT_NAME
 
-COPY artifacts/${ARTIFACT_NAME} /tmp/app.tar.gz
+COPY artifacts/ /tmp/artifacts/
 
-RUN tar -xzf /tmp/app.tar.gz -C /app && rm /tmp/app.tar.gz
+RUN tar -xzf /tmp/artifacts/${ARTIFACT_NAME} -C /app && rm -rf /tmp/artifacts
 
 ENV PYTHONPATH=/app/app_package
 
