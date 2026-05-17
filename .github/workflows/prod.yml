@@ -1,0 +1,89 @@
+name: Production Branch Pipeline (Promotion Only)
+
+# 1. Trigger: Runs only when code is pushed or merged to the 'prod' branch
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 2. Log into AWS using your keys to get clearance
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 3. Generate a secure login token for the EC2 server
+      - name: Generate ECR Login Token
+        id: get-token
+        run: |
+          TOKEN=$(aws ecr get-login-password --region eu-north-1)
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      # 4. Connect to the EC2 server and deploy without building anything
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        env:
+          IMAGE_VERSION: ${{ vars.IMAGE_VERSION }}
+          ECR_TOKEN: ${{ steps.get-token.outputs.token }}
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu 
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_VERSION,ECR_TOKEN
+          script: |
+            # Log the server into your ECR registry
+            echo "$ECR_TOKEN" | docker login --username AWS --password-stdin 245987718601.dkr.ecr.eu-north-1.amazonaws.com
+
+            # Setup dedicated production directory
+            mkdir -p /home/ubuntu/prod_env
+            cd /home/ubuntu/prod_env
+
+            # Generate the production compose file using the repo variable version
+            cat << EOF > docker-compose.yml
+            services:
+              db:
+                image: postgres:15
+                volumes:
+                  - prod_postgres_data:/var/lib/postgresql/data
+                environment:
+                  - POSTGRES_DB=book_shop
+                  - POSTGRES_USER=postgres
+                  - POSTGRES_PASSWORD=postgres
+
+              backend:
+                image: 245987718601.dkr.ecr.eu-north-1.amazonaws.com/book_shop:\$IMAGE_VERSION
+                environment:
+                  - POSTGRES_DB=book_shop
+                  - POSTGRES_USER=postgres
+                  - POSTGRES_PASSWORD=postgres
+                  - HOST=db
+                depends_on:
+                  - db
+
+              nginx:
+                image: nginx:latest
+                ports:
+                  - "80:80"
+                depends_on:
+                  - backend
+                volumes:
+                  - prod_static_volume:/static/files
+
+            volumes:
+              prod_postgres_data:
+              prod_static_volume:
+            EOF
+
+            # Deploy the containers under the 'prod' project name
+            docker compose -p prod down
+            docker compose -p prod up -d
