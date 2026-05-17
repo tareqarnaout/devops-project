@@ -8,6 +8,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: book-shop  
 
     steps:
       - name: Checkout code
@@ -49,7 +52,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "ci: add artifact for ${{ github.sha }}"
-          file_pattern: artifacts/app-*.tar.gz
+          file_pattern: book-shop/artifacts/app-*.tar.gz
           branch: dev
 
       - name: Build Docker image from artifact
@@ -66,6 +69,6 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/book-shop
+            cd /home/ubuntu/devops-project/book-shop
             docker compose -p dev down
             docker compose -p dev up -d
