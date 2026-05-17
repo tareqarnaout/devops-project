@@ -18,7 +18,6 @@ jobs:
         run: |
           cd book-shop
           export ARTIFACT_FILE="app-artifact.tar.gz"
-          # ADDED: Tell tar to exclude the artifacts folder from the zip process
           tar --exclude='./artifacts' -czf artifacts/$ARTIFACT_FILE .
           echo "ARTIFACT_NAME=$ARTIFACT_FILE" >> $GITHUB_ENV
 
@@ -39,14 +38,13 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: book_shop
           IMAGE_TAG: test-${{ github.sha }} 
-        # ADDED: Pass the ARTIFACT_NAME into Docker using --build-arg
         run: |
           cd book-shop
           docker build --build-arg ARTIFACT_NAME=${{ env.ARTIFACT_NAME }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-deploy:
+  deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
@@ -64,19 +62,18 @@ deploy:
             mkdir -p /home/ubuntu/test_env
             
             # 2. Copy the existing docker-compose file on your server into the test folder
-            # Adjust '/home/ubuntu/book_shop_deploy/' if Tareq named his folder differently on the server!
             cp /home/ubuntu/book_shop_deploy/docker-compose.yml /home/ubuntu/test_env/docker-compose.yml || cp /home/ubuntu/book_shop/docker-compose.yml /home/ubuntu/test_env/docker-compose.yml || true
             
             # 3. Move into our isolated test folder
             cd /home/ubuntu/test_env
             
-            # 4. GROUP OF 3 REQUIREMENT: Automate updating the compose file using 'sed'
+            # 4. GROUP OF 3 REQUIREMENT: Automate updating the compose file using 'sed' [cite: 99]
             sed -i "s|image: .*book_shop.*|image: $IMAGE_URI|g" docker-compose.yml
             
-            # 5. PREVENTING COLLISIONS: Change Nginx to run on port 8080 instead of 80
+            # 5. PREVENTING COLLISIONS: Change Nginx to run on port 8080 instead of 80 [cite: 125]
             sed -i "s|\"80:80\"|\"8080:80\"|g" docker-compose.yml
             sed -i "s|- 80:80|- 8080:80|g" docker-compose.yml
             
-            # 6. Safely launch the isolated test containers
+            # 6. Safely launch the isolated test containers [cite: 99, 125]
             docker compose -p test down
             docker compose -p test up -d
