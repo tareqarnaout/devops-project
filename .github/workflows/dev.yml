@@ -62,29 +62,27 @@ jobs:
             -t book_shop:${{ github.sha }} \
             .
 
-      - name: Save Docker image to file
+      - name: Save Docker image
         run: |
-          docker save book_shop:${{ github.sha }} -o book_shop.tar
+          docker save book_shop:${{ github.sha }} | gzip > /tmp/book_shop.tar.gz
 
-      - name: Copy image to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ vars.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: book-shop/book_shop.tar
-          target: /home/ubuntu/
-          strip_components: 1
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
+          ssh-keyscan -H ${{ vars.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy image to EC2 via SCP
+        run: |
+          scp -i ~/.ssh/ec2_key.pem \
+            /tmp/book_shop.tar.gz \
+            ubuntu@${{ vars.EC2_HOST }}:/home/ubuntu/book_shop.tar.gz
 
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ vars.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DJANGO_SECRET_KEY,POSTGRES_PASSWORD
-          script: |
-            docker load -i /home/ubuntu/book_shop.tar
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ubuntu@${{ vars.EC2_HOST }} << 'ENDSSH'
+            docker load -i /home/ubuntu/book_shop.tar.gz
 
             cd /home/ubuntu/devops-project
             git pull origin dev
@@ -92,14 +90,14 @@ jobs:
             cat > book-shop/.env << EOF
             POSTGRES_DB=bookshop_db
             POSTGRES_USER=book_admin
-            POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-            DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
             DJANGO_DEBUG=False
             DJANGO_ALLOWED_HOSTS=*
             IMAGE_TAG=${{ github.sha }}
             EOF
 
             cd book-shop
-            export IMAGE_TAG=${{ github.sha }}
             docker compose -p dev down
-            docker compose -p dev up -d
+            IMAGE_TAG=${{ github.sha }} docker compose -p dev up -d
+          ENDSSH
