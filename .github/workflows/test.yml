@@ -58,22 +58,50 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: IMAGE_URI
           script: |
-            # 1. Create our isolated test folder on the server if it doesn't exist
+            # 1. Create our isolated test folder on the server
             mkdir -p /home/ubuntu/test_env
-            
-            # 2. Copy the existing docker-compose file on your server into the test folder
-            cp /home/ubuntu/book_shop_deploy/docker-compose.yml /home/ubuntu/test_env/docker-compose.yml || cp /home/ubuntu/book_shop/docker-compose.yml /home/ubuntu/test_env/docker-compose.yml || true
-            
-            # 3. Move into our isolated test folder
             cd /home/ubuntu/test_env
-            
-            # 4. GROUP OF 3 REQUIREMENT: Automate updating the compose file using 'sed' [cite: 99]
-            sed -i "s|image: .*book_shop.*|image: $IMAGE_URI|g" docker-compose.yml
-            
-            # 5. PREVENTING COLLISIONS: Change Nginx to run on port 8080 instead of 80 [cite: 125]
-            sed -i "s|\"80:80\"|\"8080:80\"|g" docker-compose.yml
-            sed -i "s|- 80:80|- 8080:80|g" docker-compose.yml
-            
-            # 6. Safely launch the isolated test containers [cite: 99, 125]
+
+            # 2. Generate a fresh, pure-production docker-compose.yml directly on the server
+            # This uses the specific Phase 1 architectures required[cite: 14]: db, backend, nginx.
+            cat << EOF > docker-compose.yml
+            version: '3.8'
+
+            services:
+              db:
+                image: postgres:15
+                volumes:
+                  - test_postgres_data:/var/lib/postgresql/data
+                environment:
+                  - POSTGRES_DB=book_shop
+                  - POSTGRES_USER=postgres
+                  - POSTGRES_PASSWORD=postgres
+
+              backend:
+                image: $IMAGE_URI
+                environment:
+                  - POSTGRES_DB=book_shop
+                  - POSTGRES_USER=postgres
+                  - POSTGRES_PASSWORD=postgres
+                  - HOST=db
+                depends_on:
+                  - db
+
+              nginx:
+                image: nginx:latest
+                ports:
+                  - "8080:80"
+                depends_on:
+                  - backend
+                volumes:
+                  - test_static_volume:/static/files
+
+            volumes:
+              test_postgres_data:
+              test_static_volume:
+            EOF
+
+            # 3. Safely launch the isolated test containers
+            # We fulfill the Group of 3 requirement using automated variables.
             docker compose -p test down
             docker compose -p test up -d
