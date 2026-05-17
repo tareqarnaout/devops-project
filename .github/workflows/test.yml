@@ -15,11 +15,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Fresh Artifact
-        # ADDED: Save the specific artifact name as an environment variable in GitHub
         run: |
           cd book-shop
           export ARTIFACT_FILE="app-artifact.tar.gz"
-          tar -czf artifacts/$ARTIFACT_FILE ./*
+          # ADDED: Tell tar to exclude the artifacts folder from the zip process
+          tar --exclude='./artifacts' -czf artifacts/$ARTIFACT_FILE .
           echo "ARTIFACT_NAME=$ARTIFACT_FILE" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
