@@ -27,6 +27,7 @@ jobs:
           poetry self add poetry-plugin-export
           poetry export -f requirements.txt --output requirements.txt --without-hashes
           pip install -r requirements.txt --target=./app_package
+          pip install psycopg2-binary --target=./app_package
 
       - name: Build Fresh Artifact
         run: |
