@@ -71,7 +71,7 @@ jobs:
             mkdir -p /home/ubuntu/test_env
             cd /home/ubuntu/test_env
 
-cat << EOF > docker-compose.yml
+            cat << EOF > docker-compose.yml
             services:
               db:
                 image: postgres:15
