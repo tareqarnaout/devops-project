@@ -79,7 +79,7 @@ jobs:
             /tmp/book_shop.tar.gz \
             ubuntu@${{ vars.EC2_HOST }}:/home/ubuntu/book_shop.tar.gz
 
-      - name: Deploy to EC2
+	- name: Deploy to EC2
         run: |
           ssh -i ~/.ssh/ec2_key.pem ubuntu@${{ vars.EC2_HOST }} << 'ENDSSH'
             docker load -i /home/ubuntu/book_shop.tar.gz
@@ -98,10 +98,10 @@ jobs:
             EOF
 
             cd book-shop
-	# Change the port to 8090 to avoid crashing into production
+            
             sed -i "s|\"80:80\"|\"8090:80\"|g" docker-compose.yml
             sed -i "s|- 80:80|- 8090:80|g" docker-compose.yml
-
+            
             docker compose -p dev down
             IMAGE_TAG=${{ github.sha }} docker compose -p dev up -d
           ENDSSH
