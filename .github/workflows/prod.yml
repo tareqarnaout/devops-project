@@ -55,6 +55,8 @@ jobs:
 
               backend:
                 image: 245987718601.dkr.ecr.eu-north-1.amazonaws.com/book_shop:\$IMAGE_VERSION
+                expose:
+                  - "8000"
                 environment:
                   - POSTGRES_DB=book_shop
                   - POSTGRES_USER=postgres
@@ -70,8 +72,8 @@ jobs:
                 depends_on:
                   - backend
                 volumes:
-                  - prod_static_volume:/static/files
-                  - /home/ubuntu/devops-project/book-shop/nginx.conf:/etc/nginx/conf.d/default.conf
+                  - prod_static_volume:/app/static
+                  - /home/ubuntu/devops-project/book-shop/nginx.conf:/etc/nginx/nginx.conf
 
             volumes:
               prod_postgres_data:
