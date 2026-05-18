@@ -15,11 +15,34 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies into app_package
+        run: |
+          cd book-shop
+          pip install poetry
+          poetry self add poetry-plugin-export
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          pip install -r requirements.txt --target=./app_package
+
       - name: Build Fresh Artifact
         run: |
           cd book-shop
-          export ARTIFACT_FILE="app-artifact.tar.gz"
-          tar --exclude='./artifacts' -czf artifacts/$ARTIFACT_FILE .
+          mkdir -p artifacts
+          export ARTIFACT_FILE="app-${{ github.sha }}.tar.gz"
+          tar -czf artifacts/$ARTIFACT_FILE \
+            app_package/ \
+            books/ \
+            book_shop/ \
+            templates/ \
+            manage.py \
+            requirements.txt \
+            book.json \
+            users.json \
+            nginx.conf
           echo "ARTIFACT_NAME=$ARTIFACT_FILE" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
