@@ -60,18 +60,19 @@ jobs:
         env:
           IMAGE_URI: ${{ needs.build-and-push.outputs.image_uri }}
           ECR_TOKEN: ${{ needs.build-and-push.outputs.ecr_token }}
+          DB_PASS: ${{ secrets.POSTGRES_PASSWORD }}
+          DJANGO_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
         with:
           host: ${{ vars.EC2_HOST }}
           username: ubuntu 
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: IMAGE_URI,ECR_TOKEN
+          envs: IMAGE_URI,ECR_TOKEN,DB_PASS,DJANGO_KEY
           script: |
             echo "$ECR_TOKEN" | docker login --username AWS --password-stdin 245987718601.dkr.ecr.eu-north-1.amazonaws.com
 
             mkdir -p /home/ubuntu/test_env
             cd /home/ubuntu/test_env
 
-            # 1. Generate our own Nginx map perfectly
             cat << 'EOF' > nginx.conf
             events {
                 worker_connections 1024;
@@ -96,7 +97,6 @@ jobs:
             }
             EOF
 
-            # 2. Generate the compose file using our local nginx.conf
             cat << EOF > docker-compose.yml
             services:
               db:
@@ -104,18 +104,21 @@ jobs:
                 volumes:
                   - test_postgres_data:/var/lib/postgresql/data
                 environment:
-                  - POSTGRES_DB=book_shop
-                  - POSTGRES_USER=postgres
-                  - POSTGRES_PASSWORD=postgres
+                  - POSTGRES_DB=bookshop_db
+                  - POSTGRES_USER=book_admin
+                  - POSTGRES_PASSWORD=$DB_PASS
 
               backend:
                 image: $IMAGE_URI
                 expose:
                   - "8000"
                 environment:
-                  - POSTGRES_DB=book_shop
-                  - POSTGRES_USER=postgres
-                  - POSTGRES_PASSWORD=postgres
+                  - POSTGRES_DB=bookshop_db
+                  - POSTGRES_USER=book_admin
+                  - POSTGRES_PASSWORD=$DB_PASS
+                  - DJANGO_SECRET_KEY=$DJANGO_KEY
+                  - DJANGO_DEBUG=False
+                  - DJANGO_ALLOWED_HOSTS=*
                   - HOST=db
                 depends_on:
                   - db
