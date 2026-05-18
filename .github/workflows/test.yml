@@ -71,7 +71,7 @@ jobs:
             mkdir -p /home/ubuntu/test_env
             cd /home/ubuntu/test_env
 
-            cat << EOF > docker-compose.yml
+cat << EOF > docker-compose.yml
             services:
               db:
                 image: postgres:15
@@ -84,6 +84,8 @@ jobs:
 
               backend:
                 image: $IMAGE_URI
+                expose:
+                  - "8000"
                 environment:
                   - POSTGRES_DB=book_shop
                   - POSTGRES_USER=postgres
@@ -99,8 +101,8 @@ jobs:
                 depends_on:
                   - backend
                 volumes:
-                  - test_static_volume:/static/files
-                  - /home/ubuntu/devops-project/book-shop/nginx.conf:/etc/nginx/conf.d/default.conf
+                  - test_static_volume:/app/static
+                  - /home/ubuntu/devops-project/book-shop/nginx.conf:/etc/nginx/nginx.conf
 
             volumes:
               test_postgres_data:
